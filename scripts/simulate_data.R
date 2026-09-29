@@ -5,7 +5,7 @@
 
 library(tidyverse)
 
-# create data -------------------------------------------------------------
+# model description -------------------------------------------------------
 
 # data are meant to simulate a memory task, where subjects correctly identify 
 # whether a presented stimulus was actually present during a learning period
@@ -48,13 +48,120 @@ library(tidyverse)
 #   - B[condition * trial] is interaction between trial and condition (negative, e.g., manipulation less effective with more experience)
 #   - B[trial * age] is interaction between trial and age (negative, e.g., older people learn at slower rate)
 #   - B[trial * age * condition] is full interaction (negative, e.g., older people with fewer trials under threat perform the worst)
-#   - sd B[age][j] medium variance
 #   - sd B[trial][j] small variance
 #   - sd B[condition][j] large variance
-#   - sd B[condition * age][j] small variance
 #   - sd B[condition * trial][j] small variance
-#   - sd B[trial * age][j] small variance
-#   - sd B[trial * age * condition][j] small variance
+# 3. correlations between REs
+#   - rho B0[i][j], B[trial][j], B[condition][j], B[condition * trial][j]
 
+# create sample -----------------------------------------------------------
 
+# set pars for simulation
+set.seed(1072026)
 
+n_subjects <- 100
+n_stimuli_per_cond <- 20 # per condition
+
+condition_levels <- c('fear', 'neutral')
+
+# parameter values in log odds scale, 0 = 50% prob 
+b_intercept <- 0.5 # GM
+b_age <- -1.6
+b_trial <- 0.8
+b_condition <- -2
+b_age_trial <- -0.6
+b_age_cond <- 0.9
+b_trial_cond <- -0.4
+b_age_trial_cond <- 0.1
+
+# re variances
+sd_stim_intercept <- 0.1
+sd_subj_intercept <- 0.2
+sd_subj_trial <- 0.05
+sd_subj_cond <- 0.07
+sd_subj_ixn <- 0.01
+
+# re correlations
+rho_int_trial <- 0.1
+rho_int_cond <- 0.2
+rho_int_ixn <- 0.11
+rho_trial_cond <- 0.1
+rho_trial_ixn <- 0.05
+rho_cond_ixn <- 0.06
+
+# simulate stimuli
+stimuli <- tibble(
+  stimulus_id = factor(seq(1, n_stimuli_per_cond * 2, 1)), 
+  condition = rep(condition_levels, each = n_stimuli_per_cond), 
+  x_condition = recode(condition, 'neutral' = -.5, 'fear' = .5), 
+  O_01 = rnorm(length(stimulus_id), mean = 0, sd = sd_stim_intercept) # simulate sd stim
+)
+
+# glimpse(stimuli)
+
+# simulate subjects 
+
+# build vcov matrix for RE sampling with correlations
+m_cov <- matrix(
+  c(
+    sd_subj_intercept^2, rho_int_trial, rho_int_cond, rho_int_ixn,
+    rho_int_trial, sd_subj_trial^2, rho_trial_cond, rho_trial_ixn, 
+    rho_int_cond, rho_trial_cond, sd_subj_cond^2, rho_cond_ixn,
+    rho_int_ixn, rho_trial_ixn, rho_cond_ixn, sd_subj_ixn^2
+  ), nrow = 4, ncol = 4, byrow = TRUE
+)
+
+# make matrix non-positive definite 
+m_cov <- as.matrix(nearPD(m_cov)$mat)
+
+# generate by subject random effects
+subject_rfx <- MASS::mvrnorm(
+  n = n_subjects,
+  mu = rep(0, 4), # offset from 0, mean = 0
+  Sigma = m_cov
+) |> 
+  as_tibble() |> 
+  rename(T_0s = V1, T_trial = V2, T_condition = V3, T_ixn = V4)
+
+subjects <- tibble(
+  subject_id = factor(seq(1, n_subjects, 1)), 
+  age = sample(18:65, n_subjects, replace = TRUE), 
+  x_age = age - mean(age)
+) |> 
+  bind_cols(subject_rfx)
+
+glimpse(subjects)
+
+# create simulated data
+sim_data <- crossing(subjects, stimuli) |> 
+  group_by(subject_id) |> 
+  mutate(
+    trial = sample(1:n(), n()), 
+    x_trial = trial - mean(trial)
+  ) |> 
+  ungroup() |> 
+  mutate(
+    log_odds = b_intercept + T_0s + O_01 + 
+      b_age * x_age + 
+      (b_trial + T_trial) * x_trial + 
+      (b_condition + T_condition) * x_condition + 
+      b_age_trial * x_age * x_trial + 
+      b_age_cond * x_age * x_condition + 
+      (b_trial_cond + T_ixn) * x_trial * x_condition + 
+      b_age_trial_cond * x_age * x_trial * x_condition, 
+    prob = plogis(log_odds), 
+    correct = rbinom(n(), size = 1, prob = prob)
+  )
+
+sim_data |> 
+  group_by(condition) |> 
+  summarize(
+    p = mean(correct)
+  ) |> 
+  ggplot(aes(x = condition, y = p)) + 
+  geom_col()
+
+sim_data |> 
+  ggplot(aes(x = trial, y = correct)) + 
+  geom_point() + 
+  geom_smooth()
