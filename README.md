@@ -1,4 +1,4 @@
-# "Model to meaning": How to visualize models in R
+# "Model to meaning": How to interpret and visualize generalized multilevel models in R
 
 This is a repository that stores code and slides associated with my presentation on 10/7/2026. Here is a brief overview of how to find your way around my project:
 
