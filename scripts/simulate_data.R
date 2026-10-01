@@ -65,29 +65,29 @@ n_stimuli_per_cond <- 20 # per condition
 condition_levels <- c('fear', 'neutral')
 
 # parameter values in log odds scale, 0 = 50% prob 
-b_intercept <- 0.5 # GM
-b_age <- -1.6
-b_trial <- 0.8
-b_condition <- -2
-b_age_trial <- -0.6
-b_age_cond <- 0.9
-b_trial_cond <- -0.4
-b_age_trial_cond <- 0.1
+b_intercept <- 0 # GM
+b_age <- -0.8
+b_trial <- 0.05
+b_condition <- -1
+b_age_trial <- 0.01
+b_age_cond <- 0.5
+b_trial_cond <- -0.01
+b_age_trial_cond <- -0.2
 
 # re variances
 sd_stim_intercept <- 0.1
 sd_subj_intercept <- 0.2
-sd_subj_trial <- 0.05
-sd_subj_cond <- 0.07
-sd_subj_ixn <- 0.01
+sd_subj_trial <- 0.02
+sd_subj_cond <- 0.1
+sd_subj_ixn <- 0.005
 
 # re correlations
 rho_int_trial <- 0.1
 rho_int_cond <- 0.2
-rho_int_ixn <- 0.11
+rho_int_ixn <- 0.1
 rho_trial_cond <- 0.1
-rho_trial_ixn <- 0.05
-rho_cond_ixn <- 0.06
+rho_trial_ixn <- 0.1
+rho_cond_ixn <- 0.1
 
 # simulate stimuli
 stimuli <- tibble(
@@ -101,18 +101,18 @@ stimuli <- tibble(
 
 # simulate subjects 
 
-# build vcov matrix for RE sampling with correlations
-m_cov <- matrix(
-  c(
-    sd_subj_intercept^2, rho_int_trial, rho_int_cond, rho_int_ixn,
-    rho_int_trial, sd_subj_trial^2, rho_trial_cond, rho_trial_ixn, 
-    rho_int_cond, rho_trial_cond, sd_subj_cond^2, rho_cond_ixn,
-    rho_int_ixn, rho_trial_ixn, rho_cond_ixn, sd_subj_ixn^2
-  ), nrow = 4, ncol = 4, byrow = TRUE
-)
-
-# make matrix non-positive definite 
-m_cov <- as.matrix(nearPD(m_cov)$mat)
+# build vcov matrix for RE sampling with correlations, get nearest non-pos definite
+# to avoid error in sampling with mvnorm
+m_cov <- as.matrix(Matrix::nearPD(
+  matrix(
+    c(
+      sd_subj_intercept^2, rho_int_trial, rho_int_cond, rho_int_ixn,
+      rho_int_trial, sd_subj_trial^2, rho_trial_cond, rho_trial_ixn, 
+      rho_int_cond, rho_trial_cond, sd_subj_cond^2, rho_cond_ixn,
+      rho_int_ixn, rho_trial_ixn, rho_cond_ixn, sd_subj_ixn^2
+    ), nrow = 4, ncol = 4, byrow = TRUE
+  )
+)$mat)
 
 # generate by subject random effects
 subject_rfx <- MASS::mvrnorm(
@@ -126,7 +126,7 @@ subject_rfx <- MASS::mvrnorm(
 subjects <- tibble(
   subject_id = factor(seq(1, n_subjects, 1)), 
   age = sample(18:65, n_subjects, replace = TRUE), 
-  x_age = age - mean(age)
+  x_age = (age - mean(age)) / sd(age)
 ) |> 
   bind_cols(subject_rfx)
 
@@ -137,7 +137,7 @@ sim_data <- crossing(subjects, stimuli) |>
   group_by(subject_id) |> 
   mutate(
     trial = sample(1:n(), n()), 
-    x_trial = trial - mean(trial)
+    x_trial = (trial - mean(trial)) / sd(trial)
   ) |> 
   ungroup() |> 
   mutate(
@@ -153,15 +153,37 @@ sim_data <- crossing(subjects, stimuli) |>
     correct = rbinom(n(), size = 1, prob = prob)
   )
 
-sim_data |> 
-  group_by(condition) |> 
+sim_data |>
+  group_by(condition) |>
   summarize(
     p = mean(correct)
-  ) |> 
-  ggplot(aes(x = condition, y = p)) + 
+  ) |>
+  ggplot(aes(x = condition, y = p)) +
   geom_col()
 
 sim_data |> 
-  ggplot(aes(x = trial, y = correct)) + 
-  geom_point() + 
+  ggplot(aes(x = age, y = correct, color = condition)) + 
+  geom_point() +
   geom_smooth()
+
+sim_data |> 
+  ggplot(aes(x = trial, y = correct, color = condition)) + 
+  geom_point() +
+  geom_smooth()
+
+sim_data |> 
+  mutate(
+    age_fac = factor(
+      case_when(
+        age < 35 ~ 'young', 
+        age >= 35 ~ 'old'
+      )
+    )
+  ) |> 
+  ggplot(aes(x = trial, y = correct, color = condition)) + 
+  geom_point() + 
+  geom_smooth() + 
+  facet_wrap(~age_fac)
+
+# save
+write_csv(sim_data, 'data/sim_data.csv')
