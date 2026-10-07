@@ -8,19 +8,25 @@ This folder contains the slide deck I presented with.
 
 ## `/markdown`
 
-This folder contains a markdown file that includes code for reproducing all of the plots featured in the presentation. This will be your go to if you want to borrow my code for applying the plots to your own model.
+(In progress) This folder contains a markdown file that includes code for reproducing all of the plots featured in the presentation. This will be your go to if you want to borrow my code for applying the plots to your own model.
 
 ## `/scripts`
 
-This folder contains the base code used to simulate multilevel data, apply a model to that data, extract predictions from the model, and visualize those predictions.
+This folder contains the base code used to simulate multilevel data, apply a model to that data, extract predictions from the model, and visualize those predictions. To find and replicate `marginaleffects` and `emmeans` code from the presentation plus more, start in the `visualize_models.R` file.
 
 ## `/fits`
 
-This folder contains binaries for the individual model fits (`.rds` files). If you want to directly replicate the plots without running the model (as in the markdown script), load in the model fit from its associated binary file.
+This folder contains binaries for the individual model fits (`.rds` files). If you want to directly replicate the plots without running the model (as in the markdown doc and visualization script), load in the model fit from its associated binary file.
 
 ## `/fig_output`
 
 Contains the figures used in the presentation.
+
+## Additional resources
+
+This presentation was heavily inspired by Andrew Heiss' many amazing blog post tutorials including one describing in detail the differences between all the marginal effects [here](https://www.andrewheiss.com/blog/2022/05/20/marginalia/) and another talking about how each of these incorporate random effects with GLMMs and `brms` [here](https://www.andrewheiss.com/blog/2022/11/29/conditional-marginal-marginaleffects/). "Model to meaning" comes from a textbook of the same title by Vincent Arel-Bundock, which is another fantastic resource for practicing probing models: you can find [here](https://marginaleffects.com/). 
+
+## Contact
 
 Feel free to reach out to me if you have any issues or questions!
 
