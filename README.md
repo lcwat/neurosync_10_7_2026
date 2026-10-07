@@ -24,7 +24,7 @@ Contains the figures used in the presentation.
 
 ## Additional resources
 
-This presentation was heavily inspired by Andrew Heiss' many amazing blog post tutorials including one describing in details all the differences between different types of marginal effects [here](https://www.andrewheiss.com/blog/2022/05/20/marginalia/) and another blog explaining about how each package incorporates random effects into predictions with frequentist and Bayesian GLMMs [here](https://www.andrewheiss.com/blog/2022/11/29/conditional-marginal-marginaleffects/). "Model to meaning" comes from a textbook of the same title by Vincent Arel-Bundock, which is another fantastic resource for practicing probing model (you can find it [here](https://marginaleffects.com/)). 
+This presentation was heavily inspired by Andrew Heiss' many amazing blog post tutorials including one describing in details all the differences between different types of marginal effects [here](https://www.andrewheiss.com/blog/2022/05/20/marginalia/) and another blog explaining about how each package incorporates random effects into predictions with frequentist and Bayesian GLMMs [here](https://www.andrewheiss.com/blog/2022/11/29/conditional-marginal-marginaleffects/). "Model to meaning" comes from a textbook of the same title by Vincent Arel-Bundock, which is another fantastic resource for practicing probing models (you can find it [here](https://marginaleffects.com/)). 
 
 ## Contact
 
