@@ -48,6 +48,23 @@ clrs <- natparks.pals('Redwood')
 
 # average predictors -> plug into model formula -> vary condition
 
+# base r has two functions, predict and fitted to generate predictions, can 
+# add this vector to the original dataset to parse how predictions vary by condition
+sim_w_preds <- sim_data |> 
+  add_column(predicted = fitted(glmer_model))
+
+tidy(glmer_model) |> 
+  filter(effect == 'fixed')
+
+sim_w_preds |> 
+  group_by(condition) |> 
+  summarize(
+    mean = mean(predicted)
+  )
+
+# issue is that you will have to know how to calculate errors and CIs, easier to 
+# use a library for this
+
 # emmeans
 (preds <- emmeans(
   glmer_model,                   # model
@@ -215,8 +232,24 @@ preds <- avg_predictions(
   glmer_model, 
   by = 'x_age', 
   newdata = datagrid(
-    x_age = seq(min(sim_data$x_age), max(sim_data$x_age), length.out = 10),
+    x_age = seq(
+      min(sim_data$x_age), 
+      max(sim_data$x_age), 
+      length.out = 10
+    ),
     grid_type = 'counterfactual'
+  )  
+)
+
+preds <- predictions(
+  glmer_model, 
+  by = 'x_age', 
+  newdata = datagrid(
+    x_age = seq(
+      min(sim_data$x_age), 
+      max(sim_data$x_age), 
+      length.out = 10
+    )
   )  
 )
 
@@ -280,17 +313,60 @@ broom.mixed::tidy(glmer_model) |>
 # this negative parameter mean? 
 
 # emmeans contrasts
-emmeans(
+emtrends(
   glmer_model, 
-  pairwise ~ x_age * condition * x_trial, 
-  by = 'condition',                       # group estimates on condition
-  at = list(x_age = c(-1, 0, 1)),         # use these values of std age
-  regrid = 'response'
+  ~ x_age * condition * x_trial,
+  var = 'x_age',
+  by = 'condition'                      # group estimates on condition
+)
+
+avg_slopes(
+  glmer_model, 
+  by = 'condition',
+  variables = 'x_age', 
+  type = 'link'
 )
 
 # appears that estimates differ at each value of age
 
-# marginaleffects plot
+# emmeans 
+preds <- emmeans(
+  glmer_model, 
+  ~ x_age * x_trial * condition, 
+  by = 'condition', 
+  var = 'age', 
+  at = list(
+    x_age = seq(
+      min(sim_data$x_age), max(sim_data$x_age), # sample from min to max
+      length.out = 10
+    )
+  ), 
+  regrid = 'response'
+)
+
+# marginal effects
+preds <- predictions(
+  glmer_model, 
+  by = c('condition', 'x_age'), 
+  newdata = datagrid(
+    condition = unique, 
+    x_age = seq(
+      min(sim_data$x_age), max(sim_data$x_age), # sample from min to max
+      length.out = 10
+    )
+  )
+)
+
+# the code above will work, but may not be as reliable for generating robust predictions
+# with user-supplied values. Instead, the creator of marginaleffects Vincent Arel-Bundock
+# recommends using counterfactual estimation instead, which allows you to utilize
+# more data in generating average predictions. Counterfactual predictions copy the 
+# dataset and replace your variable with specified values then generates predictions. 
+# From there, it squishes down the dataset into average predictions for those values
+# you specified. So, it tries new combinations of data with you existing data to 
+# generate plausible predictions and errors. 
+
+# marginaleffects plot with counterfactuals
 preds <- avg_predictions(
   glmer_model, 
   by = c('condition', 'x_age'), 
@@ -351,14 +427,56 @@ ggsave(
 
 # now we can look at the three way interaction
 
-# emmeans
+# emmeans in log odds across condition and different values of age
 emtrends(
   glmer_model, 
   ~ x_age * condition * x_trial, 
-  var = 'x_age',           
-  by = 'condition', 
-  at = list(x_age = c(-1, 0, 1), x_trial = c(-1, 0, 1)), 
+  var = 'x_trial',           
+  by = c('condition', 'x_age'), 
+  at = list(x_age = c(-1, 0, 1))
+)
+
+# slopes
+avg_slopes(
+  glmer_model, 
+  by = c('condition', 'x_trial'), # group estimates on condition and trial
+  variables = 'x_age',            # calculate age slope across groups  
+  newdata = datagrid(
+    condition = unique, 
+    x_trial = c(-1, 0, 1)
+  ), 
+  type = 'link'                   # use original log-odds scale
+)
+
+# simple predictions for plotting
+# emmeans 
+preds <- emmeans(
+  glmer_model, 
+  ~ x_age * x_trial * condition, 
+  by = c('condition', 'x_trial'), 
+  var = 'x_age', 
+  at = list(
+    x_age = seq(
+      min(sim_data$x_age), max(sim_data$x_age), # sample from min to max
+      length.out = 10
+    ), 
+    x_trial = c(-1, 0, 1)
+  ), 
   regrid = 'response'
+)
+
+# marginal effects
+preds <- predictions(
+  glmer_model, 
+  by = c('condition', 'x_trial', 'x_age'), 
+  newdata = datagrid(
+    condition = unique, 
+    x_age = seq(
+      min(sim_data$x_age), max(sim_data$x_age),
+      length.out = 10
+    ), 
+    x_trial = c(-1, 0, 1) # one option, get high resolution slope across age, simple slope categories across trial
+  )
 )
 
 # visualize with marginaleffects
@@ -423,6 +541,59 @@ preds |>
 ggsave(
   'fig_output/me_age_condition_trial.png', device = 'png', 
   width = 7, height = 4, units = 'in'
+)
+
+# or a heatmap type plot with higher resolution around trial
+preds <- predictions(
+  glmer_model, 
+  by = c('condition', 'x_trial', 'x_age'), 
+  newdata = datagrid(
+    condition = unique, 
+    x_age = seq(
+      min(sim_data$x_age), max(sim_data$x_age),
+      length.out = 10
+    ), 
+    x_trial = seq(
+      min(sim_data$x_trial), max(sim_data$x_trial),
+      length.out = 10
+    )
+  )
+)
+
+preds |> 
+  ggplot(aes(x = x_age, y = x_trial, fill = estimate)) + 
+  
+  # prediction tiles
+  geom_tile() +
+  
+  # adjust scales and labs
+  labs(
+    y = 'Trial', 
+    x = 'Age'
+  ) + 
+  scale_x_continuous(
+    # replace standardized age with age labels
+    breaks = seq(min(sim_data$x_age), max(sim_data$x_age), length.out = 10), 
+    labels = round(seq(min(sim_data$age), max(sim_data$age), length.out = 10), 0)
+  ) + 
+  scale_y_continuous(
+    # replace standardized age with age labels
+    breaks = seq(min(sim_data$x_trial), max(sim_data$x_trial), length.out = 10), 
+    labels = round(seq(min(sim_data$trial), max(sim_data$trial), length.out = 10), 0)
+  ) + 
+  scale_fill_gradient(
+    'P(Correct)',
+    low = clrs[1], high = "#a5cb83", 
+    limits = c(0, 1)
+  ) +
+  coord_fixed() + 
+  neurosync_theme() + 
+  facet_wrap(~condition)
+
+# save
+ggsave(
+  'fig_output/map_age_trial_cond.png', device = 'png', 
+  width = 8, height = 6, units = 'in', dpi = 300
 )
 
 # 4. misc: random effects -------------------------------------------------
@@ -515,7 +686,7 @@ ggsave(
 )
 
 # constrast distribution
-ate <- comparisons(
+ate <- avg_comparisons(
   brm_model, 
   variables = 'condition', 
   re_formula = NULL
@@ -524,8 +695,8 @@ ate <- comparisons(
 
 # compute expectation from posterior then plot distribution
 ate |> 
-  group_by(drawid) |> 
-  summarize(draw = mean(draw)) |> 
+  # group_by(drawid) |> 
+  # summarize(draw = mean(draw)) |> 
   ggplot(aes(x = draw)) +
   
   # halfeye dists
